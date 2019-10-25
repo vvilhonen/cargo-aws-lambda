@@ -1,0 +1,21 @@
+[package]
+name = "cargo-aws-lambda"
+version = "0.1.0"
+authors = ["Vesa Vilhonen <vesa@vilhonen.com>"]
+edition = "2018"
+license = "Apache-2.0/MIT"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["aws", "lambda", "deploy", "package"]
+description = "Cross-compile, package and deploy AWS Lambda functions with only docker as a dependency using cargo aws-lambda."
+repository = "https://github.com/vvilhonen/cargo-aws-lambda"
+homepage = "https://github.com/vvilhonen/cargo-aws-lambda"
+documentation = "https://docs.rs/crate/cargo-aws-lambda"
+readme = "README.md"
+
+[dependencies]
+bytes = "0.4.12"
+rusoto_core = "0.40.0"
+rusoto_lambda = "0.40.0"
+serde = "1.0.100"
+serde_json = "1.0.40"
+structopt = "0.3.3"
