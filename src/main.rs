@@ -68,11 +68,15 @@ fn main() {
 
     println!("Running docker with args {}", args.join(" "));
 
-    Command::new("docker")
+    let result = Command::new("docker")
         .args(args)
         .env("BIN", &opt.bin)
-        .status()
-        .expect("docker build failed");
+        .status();
+
+    if !result.map(|r| r.success()).unwrap_or(false) {
+        eprintln!("Running docker failed, check output above");
+        process::exit(1);
+    }
 
     let zip_data = {
         let mut zip_file = File::open(zip_path).expect("Can't open zip path");
@@ -111,10 +115,16 @@ fn create_client(opt: &Opt, region: &str) -> LambdaClient {
 }
 
 fn check_docker() {
-    let result = Command::new("docker").args(&["--version"]).status();
-    if result.is_err() {
-        eprintln!("Can't find docker from PATH.");
-        process::exit(1);
+    let result = Command::new("docker").args(&["--version"]).output();
+    match result {
+        Ok(ref output) if output.status.success() => {}
+        e => {
+            eprintln!(
+                "Docker missing, executing docker --version failed with {:?}",
+                e
+            );
+            process::exit(1);
+        }
     }
 }
 
