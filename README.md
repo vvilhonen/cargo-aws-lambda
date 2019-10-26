@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/cargo-aws-lambda.svg)](https://crates.io/crates/cargo-aws-lambda)
 
-Node.js and other dependency free cargo subcommand for cross-compiling, packaging and deploying code quickly to AWS lambda. Uses `softprops/lambda-rust:latest` docker image and hence requires docker in `PATH`, but that's all you need.
+Node.js and other dependency free cargo subcommand for cross-compiling, packaging and deploying code quickly to AWS Lambda. Uses `softprops/lambda-rust:latest` docker image and hence requires docker in `PATH`, but that's all you need.
 
 ## Installation
 
@@ -17,6 +17,10 @@ You can find full project examples in the [examples](./examples/) directory.
 The credentials are searched by Rusoto as described in [here](https://github.com/rusoto/rusoto/blob/master/AWS-CREDENTIALS.md). If you have [AWS CLI](https://aws.amazon.com/cli/) configured, most likely everything works without additional configuration. If you want to pass AWS access key and secret as parameters, you can do it at your own risk with the `--access-key` and `--secret-key` parameters. In this case, the other processes running in the system can sniff the credentials easily.
 
 All available configuration options can be listed with the `--help` switch.
+
+## Problems?
+
+On windows you must enable the [shared drives](https://docs.docker.com/docker-for-windows/#shared-drives) feature for the drive your project is located in.
 
 ## How it works?
 
