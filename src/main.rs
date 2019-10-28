@@ -158,7 +158,7 @@ fn parse_arn(raw: &str) -> (String, String) {
         process::exit(1);
     }
 
-    let region = arn.get(3).expect("Can't find region in ARN");
-    let func_name = arn.get(6).expect("Can't find function name in ARN");
+    let region = arn[3];
+    let func_name = arn[6];
     (region.to_string(), func_name.to_string())
 }
