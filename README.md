@@ -10,11 +10,26 @@ Run `cargo install cargo-aws-lambda`.
 
 ## Usage
 
-Go to your project directory and run `cargo aws-lambda <ARN> <BIN>` to deploy the code to AWS Lambda, where `ARN` is the full ARN of the Lambda function (e.g. `arn:aws:lambda:eu-north-1:1234:function:MyLambdaFunc`) and `BIN` the name of the binary (e.g. `mylambdafunc`, if you have `src/bin/mylambdafunc.rs` with a `main` function in your project).
+Go to your project directory and run `cargo aws-lambda <ARN> <BIN>` to deploy the code to AWS Lambda, where `ARN` is the full ARN of the Lambda function (e.g. `arn:aws:lambda:eu-north-1:123456789123:function:MyLambdaFuncDev`) and `BIN` the name of the binary (e.g. `mylambdafunc`, if you have `src/bin/mylambdafunc.rs` with a `main` function in your project).
+
+        cargo aws-lambda arn:aws:lambda:eu-north-1:123456789123:function:MyLambdaFuncDev mylambdafunc
+
+**Optional.** If you don't want to pass the function ARN on command-line, you can pass in a key to a function defined in a file named Lambda.toml ([example](./examples/aws-lambda-hello/Lambda.toml)) located in your project's root directory like below.
+
+```toml
+# Lambda.toml
+[arns]
+dev = "arn:aws:lambda:eu-north-1:1234:function:MyLambdaFuncDev"
+prod = "arn:aws:lambda:eu-north-1:1234:function:MyLambdaFuncProd"
+``` 
+
+Now you can run the following command to deploy to the first ARN defined.
+
+    cargo aws-lambda dev mylambdafunc
 
 You can find full project examples in the [examples](./examples/) directory.
 
-The credentials are searched by Rusoto as described in [here](https://github.com/rusoto/rusoto/blob/master/AWS-CREDENTIALS.md). If you have [AWS CLI](https://aws.amazon.com/cli/) configured, most likely everything works without additional configuration. If you want to pass AWS access key and secret as parameters, you can do it at your own risk with the `--access-key` and `--secret-key` parameters. In this case, the other processes running in the system can sniff the credentials easily.
+**The credentials** are searched by Rusoto as described in [here](https://github.com/rusoto/rusoto/blob/master/AWS-CREDENTIALS.md). If you have [AWS CLI](https://aws.amazon.com/cli/) configured, most likely everything works without additional configuration. If you want to pass AWS access key and secret as parameters, you can do it at your own risk with the `--access-key` and `--secret-key` parameters. In this case, the other processes running in the system can sniff the credentials easily and they're captured in shell history.
 
 All available configuration options can be listed with the `--help` switch.
 

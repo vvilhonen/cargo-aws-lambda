@@ -8,6 +8,7 @@ use std::process::Command;
 use std::str::FromStr;
 use std::{env, process};
 use structopt::StructOpt;
+use toml::Value;
 
 /// Packages and deploys your project binaries to AWS Lambda
 #[derive(StructOpt, Debug)]
@@ -18,7 +19,7 @@ struct Opt {
     /// AWS Secret Key
     #[structopt(long)]
     secret_key: Option<String>,
-    /// Full ARN of the function to deploy
+    /// Full ARN of the function to deploy or its configuration key in table [arns] in Lambda.toml
     /// (e.g. arn:aws:lambda:eu-north-1:1234:function:MyLambdaFunc)
     #[structopt(name = "FUNCTION_ARN")]
     arn: String,
@@ -36,7 +37,7 @@ fn main() {
     let opt = Opt::from_iter(args);
 
     let zip_file = format!("{}.zip", opt.bin);
-    let (region, func_name) = parse_arn(&opt.arn);
+    let (region, func_name) = parse_arn_or_key(&opt.arn);
     let project_dir = env::current_dir().expect("Can't read cwd.");
 
     let mut zip_path = project_dir.clone();
@@ -128,10 +129,32 @@ fn check_docker() {
     }
 }
 
+fn parse_arn_or_key(raw: &str) -> (String, String) {
+    if raw.split(":").count() != 7 {
+        if let Ok(mut lambda_toml_file) =  File::open("Lambda.toml") {
+            let cargo_toml: Value = {
+                let mut data = String::new();
+                lambda_toml_file.read_to_string(&mut data).expect("Can't read ./Lambda.toml");
+                toml::from_str(&data).expect("Can't parse ./Lambda.toml")
+            };
+
+            let arn = cargo_toml
+                .get("arns")
+                .and_then(|arns| arns.get(raw))
+                .and_then(|v| v.as_str());
+
+            if let Some(value) = arn {
+                return parse_arn(value);
+            }
+        }
+    }
+    parse_arn(raw)
+}
+
 fn parse_arn(raw: &str) -> (String, String) {
     let arn: Vec<_> = raw.split(":").collect();
     if arn.len() != 7 {
-        eprintln!("Unidentified ARN, should be like arn:aws:lambda:<region>:<account id>:function:<function name>");
+        eprintln!("Unidentified ARN, should be like arn:aws:lambda:<region>:<account id>:function:<function name> or a key to Lambda.toml");
         process::exit(1);
     }
 
