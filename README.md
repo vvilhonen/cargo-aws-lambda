@@ -2,7 +2,7 @@
 
 [![crates.io](https://img.shields.io/crates/v/cargo-aws-lambda.svg)](https://crates.io/crates/cargo-aws-lambda)
 
-Node.js and other dependency free cargo subcommand for cross-compiling, packaging and deploying code quickly to AWS Lambda. Uses `softprops/lambda-rust:latest` docker image and hence requires docker in `PATH`, but that's all you need.
+Node.js and other dependency free cargo subcommand for cross-compiling, packaging and deploying code quickly to AWS Lambda. Uses [`softprops/lambda-rust:latest`](https://github.com/softprops/lambda-rust) docker image and hence requires docker in `PATH`, but that's all you need.
 
 ## Installation
 
