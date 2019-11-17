@@ -3,7 +3,7 @@ use rusoto_core::{DefaultCredentialsProvider, HttpClient, Region};
 use rusoto_lambda::{Lambda, LambdaClient, UpdateFunctionCodeRequest};
 use std::fs::File;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::process::Command;
 use std::str::FromStr;
 use std::{env, process};
@@ -27,6 +27,9 @@ struct Opt {
     /// (e.g. `mylambdafunc`, if you have src/bin/mylambdafunc.rs with a main function in your project)
     #[structopt(name = "BIN")]
     bin: String,
+    /// Keep debug info
+    #[structopt(long)]
+    keep_debug_info: bool
 }
 
 fn main() {
@@ -57,15 +60,7 @@ fn main() {
         cargo_path
     };
 
-    let args = &[
-        "run",
-        "--rm",
-        "-v",
-        &format!("{}:/code", project_dir.display()),
-        "-v",
-        &format!("{}:/root/.cargo/registry", cargo_registry.display()),
-        "softprops/lambda-rust:latest",
-    ];
+    let args = build_docker_args(project_dir.as_path(), cargo_registry.as_path(), opt.keep_debug_info);
 
     println!("Running docker with args {}", args.join(" "));
 
@@ -161,4 +156,23 @@ fn parse_arn(raw: &str) -> (String, String) {
     let region = arn[3];
     let func_name = arn[6];
     (region.to_string(), func_name.to_string())
+}
+
+fn build_docker_args(project_dir: &Path, cargo_registry: &Path, keep_debug_info: bool) -> Vec<String> {
+    let mut args: Vec<String> = vec![
+        "run".into(),
+        "--rm".into(),
+        "-v".into(),
+        format!("{}:/code", project_dir.display()),
+        "-v".into(),
+        format!("{}:/root/.cargo/registry", cargo_registry.display()),
+    ];
+
+    if keep_debug_info {
+        args.push("-e".into());
+        args.push("DEBUGINFO=1".into());
+    }
+
+    args.push("softprops/lambda-rust:latest".into());
+    args
 }
