@@ -86,7 +86,7 @@ fn main() {
         bytes::Bytes::from(data)
     };
 
-    let client = create_client(&opt, &region); ;
+    let client = create_client(&opt, &region);
     let req = UpdateFunctionCodeRequest {
         dry_run: Some(false),
         function_name: func_name.to_owned(),
