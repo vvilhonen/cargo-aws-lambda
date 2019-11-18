@@ -27,7 +27,7 @@ struct Opt {
     /// (e.g. `mylambdafunc`, if you have src/bin/mylambdafunc.rs with a main function in your project)
     #[structopt(name = "BIN")]
     bin: String,
-    /// Keep debug info
+    /// Retain debug info in executable (for backtraces etc.)
     #[structopt(long)]
     keep_debug_info: bool
 }
