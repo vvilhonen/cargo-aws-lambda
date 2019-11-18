@@ -29,7 +29,10 @@ struct Opt {
     bin: String,
     /// Retain debug info in executable (for backtraces etc.)
     #[structopt(long)]
-    keep_debug_info: bool
+    keep_debug_info: bool,
+    /// Override docker image with your own
+    #[structopt(long, default_value = "softprops/lambda-rust:latest")]
+    docker_image: String
 }
 
 fn main() {
@@ -60,7 +63,7 @@ fn main() {
         cargo_path
     };
 
-    let args = build_docker_args(project_dir.as_path(), cargo_registry.as_path(), opt.keep_debug_info);
+    let args = build_docker_args(project_dir.as_path(), cargo_registry.as_path(), opt.keep_debug_info, &opt.docker_image);
 
     println!("Running docker with args {}", args.join(" "));
 
@@ -158,7 +161,7 @@ fn parse_arn(raw: &str) -> (String, String) {
     (region.to_string(), func_name.to_string())
 }
 
-fn build_docker_args(project_dir: &Path, cargo_registry: &Path, keep_debug_info: bool) -> Vec<String> {
+fn build_docker_args(project_dir: &Path, cargo_registry: &Path, keep_debug_info: bool, docker_image: &str) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "run".into(),
         "--rm".into(),
@@ -173,6 +176,6 @@ fn build_docker_args(project_dir: &Path, cargo_registry: &Path, keep_debug_info:
         args.push("DEBUGINFO=1".into());
     }
 
-    args.push("softprops/lambda-rust:latest".into());
+    args.push(docker_image.into());
     args
 }
