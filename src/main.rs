@@ -1,14 +1,19 @@
 use rusoto_core::credential::StaticProvider;
 use rusoto_core::{DefaultCredentialsProvider, HttpClient, Region};
 use rusoto_lambda::{Lambda, LambdaClient, UpdateFunctionCodeRequest};
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Read;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::FromStr;
 use std::{env, process};
 use structopt::StructOpt;
 use toml::Value;
+
+mod util;
+
+use util::CommandExt;
 
 /// Packages and deploys your project binaries to AWS Lambda
 #[derive(StructOpt, Debug)]
@@ -36,6 +41,9 @@ struct Opt {
     /// Dry-run (compile and deploy in dry-run mode)
     #[structopt(long)]
     dry_run: bool,
+    /// Use managed persistent build volume (speeds things up on windows hosts)
+    #[structopt(long)]
+    use_build_volume: bool,
 }
 
 fn main() {
@@ -45,6 +53,10 @@ fn main() {
     args.remove(1);
     let opt = Opt::from_iter(args);
 
+    if opt.use_build_volume {
+        manage_build_volume();
+    }
+
     let zip_file = format!("{}.zip", opt.bin);
     let (region, func_name) = parse_arn_or_key(&opt.arn);
     let project_dir = env::current_dir().expect("Can't read cwd.");
@@ -53,7 +65,7 @@ fn main() {
     zip_path.extend(&["target", "lambda", "release", &zip_file]);
 
     println!(
-        "Deploying {} to {:?} {}",
+        "Preparing to deploy {} to {:?} {}",
         zip_path.display(),
         region,
         func_name
@@ -66,16 +78,16 @@ fn main() {
         cargo_path
     };
 
-    let args = build_docker_args(project_dir.as_path(), cargo_registry.as_path(), opt.keep_debug_info, &opt.docker_image);
+    let args = build_docker_args(project_dir.as_path(), cargo_registry.as_path(), &opt);
 
     println!("Running docker with args {}", args.join(" "));
 
-    let result = Command::new("docker")
+    let success = Command::new("docker")
         .args(args)
         .env("BIN", &opt.bin)
-        .status();
+        .status_bool();
 
-    if !result.map(|r| r.success()).unwrap_or(false) {
+    if !success {
         eprintln!("Running docker failed, check output above");
         process::exit(1);
     }
@@ -132,10 +144,12 @@ fn check_docker() {
 
 fn parse_arn_or_key(raw: &str) -> (String, String) {
     if raw.split(":").count() != 7 {
-        if let Ok(mut lambda_toml_file) =  File::open("Lambda.toml") {
+        if let Ok(mut lambda_toml_file) = File::open("Lambda.toml") {
             let cargo_toml: Value = {
                 let mut data = String::new();
-                lambda_toml_file.read_to_string(&mut data).expect("Can't read ./Lambda.toml");
+                lambda_toml_file
+                    .read_to_string(&mut data)
+                    .expect("Can't read ./Lambda.toml");
                 toml::from_str(&data).expect("Can't parse ./Lambda.toml")
             };
 
@@ -164,21 +178,66 @@ fn parse_arn(raw: &str) -> (String, String) {
     (region.to_string(), func_name.to_string())
 }
 
-fn build_docker_args(project_dir: &Path, cargo_registry: &Path, keep_debug_info: bool, docker_image: &str) -> Vec<String> {
+fn build_docker_args(project_dir: &Path, cargo_registry: &Path, opt: &Opt) -> Vec<String> {
     let mut args: Vec<String> = vec![
         "run".into(),
         "--rm".into(),
         "-v".into(),
         format!("{}:/code", project_dir.display()),
-        "-v".into(),
-        format!("{}:/root/.cargo/registry", cargo_registry.display()),
     ];
 
-    if keep_debug_info {
+    if opt.use_build_volume {
+        args.push("-v".into());
+        args.push(format!("{}:/build-volume", build_volume_name()));
+        args.push("-v".into());
+        args.push(format!("{}:/root/.cargo/registry", build_volume_name()));
+    } else {
+        args.push("-v".into());
+        args.push(format!(
+            "{}:/root/.cargo/registry",
+            cargo_registry.display()
+        ));
+    }
+
+    if opt.keep_debug_info {
         args.push("-e".into());
         args.push("DEBUGINFO=1".into());
     }
 
-    args.push(docker_image.into());
+    args.push(opt.docker_image.clone());
     args
+}
+
+fn build_volume_name() -> String {
+    let cwd = std::env::current_dir().expect("Can't get cwd");
+    let basename = cwd
+        .file_name()
+        .and_then(OsStr::to_str)
+        .expect("Can't get basename from cwd");
+    format!("rust-build-volume-{}", basename)
+}
+
+fn manage_build_volume() {
+    let name = build_volume_name();
+
+    let success = Command::new("docker")
+        .args(&["volume", "inspect", &name])
+        .status_bool();
+
+    if !success {
+        println!("Didn't find build volume {}, creating it", name);
+    } else {
+        return;
+    }
+
+    let success = Command::new("docker")
+        .args(&["volume", "create", &name])
+        .status_bool();
+
+    if !success {
+        eprintln!("Failed to create docker build volume {}", name);
+        ::std::process::exit(1);
+    } else {
+        println!("Created docker volume {}", name)
+    }
 }
