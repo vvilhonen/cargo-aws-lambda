@@ -32,7 +32,10 @@ struct Opt {
     keep_debug_info: bool,
     /// Override docker image with your own
     #[structopt(long, default_value = "softprops/lambda-rust:latest")]
-    docker_image: String
+    docker_image: String,
+    /// Dry-run (compile and deploy in dry-run mode)
+    #[structopt(long)]
+    dry_run: bool,
 }
 
 fn main() {
@@ -86,9 +89,9 @@ fn main() {
 
     let client = create_client(&opt, &region);
     let req = UpdateFunctionCodeRequest {
-        dry_run: Some(false),
+        dry_run: Some(opt.dry_run),
         function_name: func_name.to_owned(),
-        publish: Some(true),
+        publish: Some(!opt.dry_run),
         zip_file: Some(zip_data),
         ..Default::default()
     };
