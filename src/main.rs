@@ -44,6 +44,9 @@ struct Opt {
     /// Use managed persistent build volume (speeds things up on windows hosts)
     #[structopt(long)]
     use_build_volume: bool,
+    /// Pass environment variables to the container (for eg. -e RUSTFLAGS=-Ztime-passes)
+    #[structopt(short,long)]
+    env: Vec<String>,
 }
 
 fn main() {
@@ -202,6 +205,11 @@ fn build_docker_args(project_dir: &Path, cargo_registry: &Path, opt: &Opt) -> Ve
     if opt.keep_debug_info {
         args.push("-e".into());
         args.push("DEBUGINFO=1".into());
+    }
+
+    for env in &opt.env {
+        args.push("-e".into());
+        args.push(env.clone());
     }
 
     args.push(opt.docker_image.clone());
