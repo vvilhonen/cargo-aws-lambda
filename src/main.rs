@@ -14,6 +14,7 @@ use toml::Value;
 mod util;
 
 use util::CommandExt;
+use std::fmt::Display;
 
 /// Packages and deploys your project binaries to AWS Lambda
 #[derive(StructOpt, Debug)]
@@ -111,7 +112,26 @@ fn main() {
         ..Default::default()
     };
     let res = client.update_function_code(req).sync();
-    println!("{:#?}", res);
+    if let Ok(res) = res {
+        fn disp<D: Display>(x: Option<D>) -> String {
+            x.map(|x| format!("{}", x)).unwrap_or("N/A".to_owned())
+        }
+        println!("\n===== Deploy successful =====");
+        println!("Function:      {}", disp(res.function_name));
+        println!("Handler        {}", disp(res.handler));
+        println!("Version:       {}", disp(res.version));
+        println!("SHA-256:       {}", disp(res.code_sha_256));
+        println!("Last Modified: {}", disp(res.last_modified));
+        println!("Runtime:       {}", disp(res.runtime));
+        println!("Mem limit:     {} MB", disp(res.memory_size));
+        println!("Time limit:    {} s", disp(res.timeout));
+        println!("ARN:           {}", disp(res.function_arn));
+        println!("Role:          {}", disp(res.role));
+    } else {
+        println!("\n===== Deploy FAILED =====");
+        println!("{:#?}", res);
+        ::std::process::exit(1);
+    }
 }
 
 fn create_client(opt: &Opt, region: &str) -> LambdaClient {
