@@ -13,8 +13,11 @@ use toml::Value;
 
 mod util;
 
-use util::CommandExt;
+use rusoto_logs::{CloudWatchLogs, CloudWatchLogsClient, FilterLogEventsRequest};
+use std::collections::HashSet;
 use std::fmt::Display;
+use std::time::{Duration, SystemTime};
+use util::CommandExt;
 
 /// Packages and deploys your project binaries to AWS Lambda
 #[derive(StructOpt, Debug)]
@@ -46,8 +49,11 @@ struct Opt {
     #[structopt(long)]
     use_build_volume: bool,
     /// Pass environment variables to the container (for eg. -e RUSTFLAGS=-Ztime-passes)
-    #[structopt(short,long)]
+    #[structopt(short, long)]
     env: Vec<String>,
+    /// Tail function's cloudwatch logs
+    #[structopt(long)]
+    tail_logs: bool,
 }
 
 fn main() {
@@ -103,7 +109,7 @@ fn main() {
         bytes::Bytes::from(data)
     };
 
-    let client = create_client(&opt, &region);
+    let client = create_lambda_client(&opt, &region);
     let req = UpdateFunctionCodeRequest {
         dry_run: Some(opt.dry_run),
         function_name: func_name.to_owned(),
@@ -117,7 +123,7 @@ fn main() {
             x.map(|x| format!("{}", x)).unwrap_or("N/A".to_owned())
         }
         println!("\n===== Deploy successful =====");
-        println!("Function:      {}", disp(res.function_name));
+        println!("Function:      {}", disp(res.function_name.as_ref()));
         println!("Handler        {}", disp(res.handler));
         println!("Version:       {}", disp(res.version));
         println!("SHA-256:       {}", disp(res.code_sha_256));
@@ -127,14 +133,24 @@ fn main() {
         println!("Time limit:    {} s", disp(res.timeout));
         println!("ARN:           {}", disp(res.function_arn));
         println!("Role:          {}", disp(res.role));
+
+        if opt.tail_logs {
+            println!("\n===== Tailing logs =====");
+            let logs_client = create_logs_client(&opt, &region);
+            let func_name = res.function_name.unwrap_or("".into());
+            if let Err(e) = tail_logs(&func_name, &logs_client) {
+                eprintln!("Failed to tail logs:\n{:?}", e);
+                ::std::process::exit(1);
+            }
+        }
     } else {
-        println!("\n===== Deploy FAILED =====");
-        println!("{:#?}", res);
+        eprintln!("\n===== Deploy FAILED =====");
+        eprintln!("{:#?}", res);
         ::std::process::exit(1);
     }
 }
 
-fn create_client(opt: &Opt, region: &str) -> LambdaClient {
+fn create_lambda_client(opt: &Opt, region: &str) -> LambdaClient {
     let dispatcher = HttpClient::new().expect("failed to create request dispatcher");
     let region = Region::from_str(region).unwrap();
 
@@ -147,6 +163,23 @@ fn create_client(opt: &Opt, region: &str) -> LambdaClient {
             let creds =
                 DefaultCredentialsProvider::new().expect("failed to create credentials provider");
             LambdaClient::new_with(dispatcher, creds, region)
+        }
+    }
+}
+
+fn create_logs_client(opt: &Opt, region: &str) -> CloudWatchLogsClient {
+    let dispatcher = HttpClient::new().expect("failed to create request dispatcher");
+    let region = Region::from_str(region).unwrap();
+
+    match (&opt.access_key, &opt.secret_key) {
+        (Some(access_key), Some(secret_key)) => {
+            let creds = StaticProvider::new_minimal(access_key.to_owned(), secret_key.to_owned());
+            CloudWatchLogsClient::new_with(dispatcher, creds, region)
+        }
+        _ => {
+            let creds =
+                DefaultCredentialsProvider::new().expect("failed to create credentials provider");
+            CloudWatchLogsClient::new_with(dispatcher, creds, region)
         }
     }
 }
@@ -267,5 +300,52 @@ fn manage_build_volume() {
         ::std::process::exit(1);
     } else {
         println!("Created docker volume {}", name)
+    }
+}
+
+fn tail_logs(
+    function_name: &str,
+    logs_client: &CloudWatchLogsClient,
+) -> Result<(), Box<dyn ::std::error::Error>> {
+    let unix = || {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64
+            - 5 * 60 * 1000
+    };
+    let mut next_token = None;
+    let mut start_time = Some(unix());
+    let mut seen = HashSet::new();
+
+    loop {
+        let input = FilterLogEventsRequest {
+            end_time: None,
+            filter_pattern: None,
+            limit: Some(10000),
+            log_group_name: format!("/aws/lambda/{}", function_name),
+            log_stream_name_prefix: None,
+            log_stream_names: None,
+            next_token: next_token.clone(),
+            start_time,
+        };
+
+        let res = logs_client.filter_log_events(input).sync()?;
+
+        if let Some(events) = res.events {
+            for event in events {
+                if !seen.contains(event.event_id.as_ref().unwrap()) {
+                    print!("{}", event.message.unwrap());
+                    seen.insert(event.event_id.unwrap().clone());
+                }
+            }
+        }
+
+        next_token = res.next_token;
+
+        if next_token.is_none() {
+            start_time = Some(unix());
+        }
+        ::std::thread::sleep(Duration::from_millis(3000));
     }
 }
