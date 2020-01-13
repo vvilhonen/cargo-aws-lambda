@@ -34,6 +34,10 @@ pub fn tail(
             .as_millis() as i64
             - 5 * 60 * 1000
     };
+    let user_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
     let mut next_token = None;
     let mut start_time = Some(unix());
     let mut seen = HashSet::new();
@@ -54,7 +58,8 @@ pub fn tail(
 
         if let Some(events) = res.events {
             for event in events {
-                if !seen.contains(event.event_id.as_ref().unwrap()) {
+                let ts = event.timestamp.unwrap_or(::std::i64::MAX);
+                if !seen.contains(event.event_id.as_ref().unwrap()) && ts > user_time {
                     print!("{}", event.message.unwrap());
                     seen.insert(event.event_id.unwrap().clone());
                 }
