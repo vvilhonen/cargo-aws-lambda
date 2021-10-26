@@ -16,6 +16,9 @@ mod util;
 /// Packages and deploys your project binaries to AWS Lambda
 #[derive(StructOpt, Debug)]
 struct Opt {
+    /// AWS Profile
+    #[structopt(long)]
+    profile: Option<String>,
     /// AWS Access Key
     #[structopt(long)]
     access_key: Option<String>,

@@ -1,5 +1,5 @@
-use rusoto_core::credential::StaticProvider;
-use rusoto_core::{DefaultCredentialsProvider, HttpClient, Region};
+use rusoto_core::credential::{ChainProvider, ProfileProvider, StaticProvider};
+use rusoto_core::{HttpClient, Region};
 use rusoto_logs::{CloudWatchLogs, CloudWatchLogsClient, FilterLogEventsRequest};
 use std::collections::HashSet;
 use std::str::FromStr;
@@ -10,14 +10,18 @@ pub(crate) fn create_client(opt: &Opt, region: &str) -> CloudWatchLogsClient {
     let dispatcher = HttpClient::new().expect("failed to create request dispatcher");
     let region = Region::from_str(region).unwrap();
 
-    match (&opt.access_key, &opt.secret_key) {
-        (Some(access_key), Some(secret_key)) => {
+    match (&opt.access_key, &opt.secret_key, &opt.profile) {
+        (Some(access_key), Some(secret_key), _) => {
             let creds = StaticProvider::new_minimal(access_key.to_owned(), secret_key.to_owned());
             CloudWatchLogsClient::new_with(dispatcher, creds, region)
-        }
+        },
+        (_, _, Some(profile)) => {
+            let mut creds = ProfileProvider::new().unwrap();
+            creds.set_profile(profile.to_owned());
+            CloudWatchLogsClient::new_with(dispatcher, creds, region)
+        },
         _ => {
-            let creds =
-                DefaultCredentialsProvider::new().expect("failed to create credentials provider");
+            let creds = ChainProvider::new();
             CloudWatchLogsClient::new_with(dispatcher, creds, region)
         }
     }
